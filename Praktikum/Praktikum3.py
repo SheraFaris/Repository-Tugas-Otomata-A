@@ -47,7 +47,7 @@ class PDASimulator:
             trace: list[dict]
             reason: str
         """
-        """ Program membersihkan input """
+        # Program membersihkan input 
         text = input_string.strip().lower()
         """ 
             ε
@@ -62,7 +62,7 @@ class PDASimulator:
         for ch in text:
             if ch not in self.alphabet:
                 return False, [], "Rejected: simbol input hanya boleh 's'."
-
+        # Program mengecek panjang string
         if len(text) % 2 != 0:
             return False, self._make_failed_trace(text), (
                 "Rejected: jumlah simbol 's' ganjil, sehingga jumlah PUSH dan POP tidak seimbang."
