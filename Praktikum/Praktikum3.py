@@ -1,160 +1,199 @@
 """
-PDA Simulator for language L = { w x reverse(w) | w in {a,b}* }
+PDA Simulator for the provided PDA diagram.
 
-Based on the given PDA diagram:
-1. Read symbols before 'x' and PUSH each a/b to stack.
-2. After reading 'x', read symbols after 'x' and POP matching stack top.
-3. ACCEPT only if input is finished and stack is empty.
+Language accepted:
+    L = { s^(2n) | n >= 0 }
+
+Meaning:
+    The PDA accepts strings with an even number of 's'.
+
+Why?
+    1. In the first phase, the PDA reads 's' and PUSHes 's' to the stack.
+    2. Using an epsilon transition, it moves to the second phase.
+    3. In the second phase, it reads 's' and POPs one 's' from the stack.
+    4. It accepts only when the input is finished and only the bottom symbol Δ remains.
 
 Examples accepted:
-x
-axa
-bxb
-abxba
-aabxbaa
+    ε
+    ss
+    ssss
+    ssssss
 
 Examples rejected:
-abxabb
-abx
-xab
-abc
+    s
+    sss
+    sssss
+    a
 """
 
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk
+
+
+BOTTOM = "Δ"
 
 
 class PDASimulator:
     def __init__(self):
-        self.valid_symbols = {"a", "b", "x"}
+        self.alphabet = {"s"}
 
     def simulate(self, input_string: str):
         """
+        Simulates the PDA by choosing the middle of the string as the epsilon move.
+        This matches the PDA's nondeterministic behavior for L = { s^(2n) }.
+
         Returns:
-            accepted (bool)
-            trace (list of dict)
-            reason (str)
+            accepted: bool
+            trace: list[dict]
+            reason: str
         """
-        s = input_string.strip().lower()
-        stack = []
-        mode = "PUSH"       # before reading x
-        seen_x = False
+        text = input_string.strip().lower()
+
+        if text in {"ε", "epsilon", "lambda", "λ"}:
+            text = ""
+
+        for ch in text:
+            if ch not in self.alphabet:
+                return False, [], "Rejected: simbol input hanya boleh 's'."
+
+        if len(text) % 2 != 0:
+            return False, self._make_failed_trace(text), (
+                "Rejected: jumlah simbol 's' ganjil, sehingga jumlah PUSH dan POP tidak seimbang."
+            )
+
+        half = len(text) // 2
+        stack = [BOTTOM]
         trace = []
-
-        if s == "":
-            return False, [], "Input kosong. Minimal harus ada simbol 'x'."
-
         step = 1
 
-        for index, symbol in enumerate(s):
-            if symbol not in self.valid_symbols:
-                return False, trace, f"Simbol tidak valid: '{symbol}'. Hanya boleh a, b, dan x."
-
-            stack_before = "".join(stack) if stack else "ε"
-            action = ""
-            state = ""
-
-            if mode == "PUSH":
-                state = "q_push"
-
-                if symbol in {"a", "b"}:
-                    stack.append(symbol)
-                    action = f"READ {symbol}, PUSH {symbol}"
-
-                elif symbol == "x":
-                    if seen_x:
-                        return False, trace, "Input memiliki lebih dari satu simbol 'x'."
-                    seen_x = True
-                    mode = "POP"
-                    action = "READ x, pindah ke mode POP"
-
-            else:  # mode == "POP"
-                state = "q_pop"
-
-                if symbol == "x":
-                    return False, trace, "Input memiliki lebih dari satu simbol 'x'."
-
-                if not stack:
-                    action = f"READ {symbol}, gagal karena stack kosong"
-                    trace.append({
-                        "Step": step,
-                        "State": state,
-                        "Input": symbol,
-                        "Stack Before": stack_before,
-                        "Action": action,
-                        "Stack After": "ε",
-                    })
-                    return False, trace, "Rejected: bagian kanan lebih panjang dari bagian kiri."
-
-                top = stack[-1]
-                if top == symbol:
-                    stack.pop()
-                    action = f"READ {symbol}, POP {symbol}"
-                else:
-                    action = f"READ {symbol}, gagal karena top stack = {top}"
-                    trace.append({
-                        "Step": step,
-                        "State": state,
-                        "Input": symbol,
-                        "Stack Before": stack_before,
-                        "Action": action,
-                        "Stack After": "".join(stack) if stack else "ε",
-                    })
-                    return False, trace, (
-                        f"Rejected: simbol kanan '{symbol}' tidak cocok "
-                        f"dengan top stack '{top}'."
-                    )
-
+        # Phase 1: READ s, PUSH s
+        for i in range(half):
+            stack_before = self._stack_text(stack)
+            stack.append("s")
             trace.append({
                 "Step": step,
-                "State": state,
-                "Input": symbol,
+                "State": "q_push",
+                "Remaining Input": text[i:],
+                "Read": "s",
                 "Stack Before": stack_before,
-                "Action": action,
-                "Stack After": "".join(stack) if stack else "ε",
+                "Action": "READ s, PUSH s",
+                "Stack After": self._stack_text(stack),
             })
             step += 1
 
-        if not seen_x:
-            return False, trace, "Rejected: input harus memiliki satu simbol tengah 'x'."
+        # Epsilon transition from first READ to second READ
+        trace.append({
+            "Step": step,
+            "State": "q_push → q_pop",
+            "Remaining Input": text[half:],
+            "Read": "ε",
+            "Stack Before": self._stack_text(stack),
+            "Action": "ε-transition, pindah ke fase POP",
+            "Stack After": self._stack_text(stack),
+        })
+        step += 1
 
-        # λ transition to ACCEPT when input is finished and stack is empty
-        if len(stack) == 0:
+        # Phase 2: READ s, POP s
+        for i in range(half, len(text)):
+            stack_before = self._stack_text(stack)
+
+            if len(stack) <= 1 or stack[-1] != "s":
+                trace.append({
+                    "Step": step,
+                    "State": "q_pop",
+                    "Remaining Input": text[i:],
+                    "Read": "s",
+                    "Stack Before": stack_before,
+                    "Action": "GAGAL: top stack bukan s",
+                    "Stack After": self._stack_text(stack),
+                })
+                return False, trace, "Rejected: simbol 's' tidak dapat di-POP dari stack."
+
+            stack.pop()
             trace.append({
                 "Step": step,
-                "State": "q_accept",
-                "Input": "λ",
-                "Stack Before": "ε",
-                "Action": "ACCEPT karena input habis dan stack kosong",
+                "State": "q_pop",
+                "Remaining Input": text[i:],
+                "Read": "s",
+                "Stack Before": stack_before,
+                "Action": "READ s, POP s",
+                "Stack After": self._stack_text(stack),
+            })
+            step += 1
+
+        # Pop bottom marker Δ and accept
+        if stack == [BOTTOM]:
+            stack_before = self._stack_text(stack)
+            stack.pop()
+            trace.append({
+                "Step": step,
+                "State": "q_pop → q_accept",
+                "Remaining Input": "ε",
+                "Read": "Δ",
+                "Stack Before": stack_before,
+                "Action": "POP Δ, ACCEPT",
                 "Stack After": "ε",
             })
-            return True, trace, "Accepted: string sesuai pola w x reverse(w)."
+            return True, trace, "Accepted: jumlah PUSH dan POP seimbang. String memiliki jumlah 's' genap."
 
-        return False, trace, (
-            "Rejected: input habis tetapi stack belum kosong. "
-            "Bagian kiri lebih panjang dari bagian kanan."
-        )
+        return False, trace, "Rejected: input habis tetapi stack belum kembali ke Δ."
+
+    def _make_failed_trace(self, text):
+        """
+        Gives a simple trace for odd-length strings.
+        The PDA cannot split an odd number of s into two equal parts.
+        """
+        trace = []
+        stack = [BOTTOM]
+        step = 1
+        middle = len(text) // 2
+
+        for i in range(middle + 1):
+            stack_before = self._stack_text(stack)
+            stack.append("s")
+            trace.append({
+                "Step": step,
+                "State": "q_push",
+                "Remaining Input": text[i:],
+                "Read": "s",
+                "Stack Before": stack_before,
+                "Action": "READ s, PUSH s",
+                "Stack After": self._stack_text(stack),
+            })
+            step += 1
+
+        trace.append({
+            "Step": step,
+            "State": "q_pop",
+            "Remaining Input": text[middle + 1:],
+            "Read": "ε",
+            "Stack Before": self._stack_text(stack),
+            "Action": "GAGAL: sisa input tidak cukup untuk mengosongkan stack",
+            "Stack After": self._stack_text(stack),
+        })
+        return trace
+
+    def _stack_text(self, stack):
+        if not stack:
+            return "ε"
+        return "".join(stack)
 
 
 class PDAApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("PDA Simulator - w x reverse(w)")
-        self.root.geometry("900x560")
+        self.root.title("PDA Simulator - Even Number of s")
+        self.root.geometry("980x600")
         self.root.resizable(True, True)
 
         self.simulator = PDASimulator()
 
-        title = tk.Label(
-            root,
-            text="PDA Simulator",
-            font=("Arial", 22, "bold")
-        )
+        title = tk.Label(root, text="PDA Simulator", font=("Arial", 22, "bold"))
         title.pack(pady=(15, 0))
 
         subtitle = tk.Label(
             root,
-            text="Bahasa: L = { w x reverse(w) | w ∈ {a,b}* }",
+            text="Bahasa: L = { s^(2n) | n ≥ 0 }  → menerima jumlah huruf 's' yang genap",
             font=("Arial", 12)
         )
         subtitle.pack(pady=(0, 15))
@@ -184,41 +223,44 @@ class PDAApp:
         )
         clear_button.pack(side=tk.LEFT, padx=5)
 
-        examples = tk.Label(
-            root,
-            text="Contoh accepted: x, axa, bxb, abxba, aabxbaa | Contoh rejected: abxabb, abx, xab",
-            font=("Arial", 10)
-        )
-        examples.pack(pady=(5, 10))
+        example_frame = tk.Frame(root)
+        example_frame.pack(pady=(5, 10))
 
-        self.result_label = tk.Label(
-            root,
-            text="Result: -",
-            font=("Arial", 16, "bold")
-        )
+        tk.Label(
+            example_frame,
+            text="Contoh accepted: ε, ss, ssss, ssssss     |     Contoh rejected: s, sss, sssss",
+            font=("Arial", 10)
+        ).pack()
+
+        self.result_label = tk.Label(root, text="Result: -", font=("Arial", 16, "bold"))
         self.result_label.pack(pady=5)
 
-        self.reason_label = tk.Label(
-            root,
-            text="",
-            font=("Arial", 11),
-            wraplength=800
-        )
+        self.reason_label = tk.Label(root, text="", font=("Arial", 11), wraplength=900)
         self.reason_label.pack(pady=5)
 
         table_frame = tk.Frame(root)
         table_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
 
-        columns = ("Step", "State", "Input", "Stack Before", "Action", "Stack After")
+        columns = (
+            "Step",
+            "State",
+            "Remaining Input",
+            "Read",
+            "Stack Before",
+            "Action",
+            "Stack After",
+        )
+
         self.tree = ttk.Treeview(table_frame, columns=columns, show="headings")
 
         widths = {
-            "Step": 60,
-            "State": 100,
-            "Input": 80,
-            "Stack Before": 120,
-            "Action": 330,
-            "Stack After": 120,
+            "Step": 55,
+            "State": 125,
+            "Remaining Input": 140,
+            "Read": 70,
+            "Stack Before": 125,
+            "Action": 300,
+            "Stack After": 125,
         }
 
         for col in columns:
@@ -245,7 +287,8 @@ class PDAApp:
                 values=(
                     row["Step"],
                     row["State"],
-                    row["Input"],
+                    row["Remaining Input"],
+                    row["Read"],
                     row["Stack Before"],
                     row["Action"],
                     row["Stack After"],
