@@ -178,7 +178,7 @@ class PDASimulator:
             return "ε"
         return "".join(stack)
 
-
+# Class PDAApp membuat tampilan program
 class PDAApp:
     def __init__(self, root):
         self.root = root
@@ -274,7 +274,10 @@ class PDAApp:
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
     def run_simulation(self):
+        # mengambil input pengguna:
         input_string = self.entry.get()
+
+        # menjalankan simulator PDA
         accepted, trace, reason = self.simulator.simulate(input_string)
 
         for item in self.tree.get_children():
@@ -309,7 +312,7 @@ class PDAApp:
         for item in self.tree.get_children():
             self.tree.delete(item)
 
-
+# Bagian ini menjalankan GUI Tkinter
 if __name__ == "__main__":
     root = tk.Tk()
     app = PDAApp(root)
