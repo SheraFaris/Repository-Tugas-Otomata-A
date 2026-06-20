@@ -47,8 +47,15 @@ class PDASimulator:
             trace: list[dict]
             reason: str
         """
+        """ Program membersihkan input """
         text = input_string.strip().lower()
-
+        """ 
+            ε
+            epsilon
+            lambda
+            λ
+            ==> Dianggap kosong
+        """
         if text in {"ε", "epsilon", "lambda", "λ"}:
             text = ""
 
